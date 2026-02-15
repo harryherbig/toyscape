@@ -6,8 +6,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Spielmatte</title>
+<title>Toyscape</title>
 <style>
+/* ============================================
+   RESET & BASE
+   ============================================ */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -23,598 +26,309 @@ html, body {
   height: 100%;
   overflow: hidden;
   position: fixed;
-  top: 0;
-  left: 0;
+  top: 0; left: 0;
   touch-action: none;
+  background: #1a1a1a;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-#world {
+/* ============================================
+   VIEWPORT CONTAINER
+   ============================================ */
+#viewport {
   position: fixed;
   top: 0; left: 0;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  transition: background 1.5s ease;
+  background: #1a1a1a;
+  transition: background 1s ease;
 }
 
-/* === GRASS BACKGROUND === */
-.grass {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: #7ec850;
-  transition: background 1.5s ease;
-  z-index: 0;
-}
-
-#world.night .grass {
-  background: #1a2a1a;
-}
-
-/* Subtle grass texture dots */
-.grass::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background:
-    radial-gradient(circle at 15% 25%, rgba(90,160,40,0.4) 0%, transparent 1.5%),
-    radial-gradient(circle at 55% 12%, rgba(80,150,35,0.3) 0%, transparent 1%),
-    radial-gradient(circle at 85% 65%, rgba(100,170,50,0.35) 0%, transparent 2%),
-    radial-gradient(circle at 35% 75%, rgba(85,155,40,0.3) 0%, transparent 1.5%),
-    radial-gradient(circle at 70% 40%, rgba(95,165,45,0.25) 0%, transparent 1%);
-  pointer-events: none;
-}
-
-#world.night .grass::after {
-  opacity: 0.15;
+#viewport.night {
+  background: #0a0a0a;
 }
 
 /* ============================================
-   ROAD LAYOUT — Inverted-T shape
-
-   Horizontal road runs across the middle (y ~48%)
-   Vertical road goes UP from intersection to helipad (x ~65%)
-
-   Hospital: top-left, connects DOWN to horizontal road
-   Helipad: top-right, connects via vertical road
-   Parking: bottom-center, connects UP to horizontal road
+   GRID WRAPPER — transformed for pan/zoom
    ============================================ */
-
-.road {
+#grid-wrapper {
   position: absolute;
-  background: #555;
-  z-index: 1;
-  transition: background 1.5s ease;
-}
-
-#world.night .road {
-  background: #333;
-}
-
-/* Dashed center lines */
-.road-h::after {
-  content: '';
-  position: absolute;
-  top: 50%; left: 0; right: 0;
-  height: 4px;
-  transform: translateY(-50%);
-  background: repeating-linear-gradient(90deg, #fff 0px, #fff 25px, transparent 25px, transparent 50px);
-  opacity: 0.6;
-}
-
-.road-v::after {
-  content: '';
-  position: absolute;
-  left: 50%; top: 0; bottom: 0;
-  width: 4px;
-  transform: translateX(-50%);
-  background: repeating-linear-gradient(180deg, #fff 0px, #fff 25px, transparent 25px, transparent 50px);
-  opacity: 0.6;
-}
-
-/* Main horizontal road */
-#road-main {
-  left: 5%;
-  right: 5%;
-  top: 45%;
-  height: 12%;
-}
-
-/* Vertical road going up from intersection to helipad */
-#road-up {
-  left: 62%;
-  top: 5%;
-  width: 12%;
-  height: 40%;
-}
-
-/* Vertical road going down from intersection to parking */
-#road-down {
-  left: 25%;
-  top: 57%;
-  width: 12%;
-  height: 30%;
-}
-
-/* Intersection patches */
-.road-patch {
-  position: absolute;
-  background: #555;
-  z-index: 2;
-  transition: background 1.5s ease;
-}
-
-#world.night .road-patch {
-  background: #333;
-}
-
-#patch-right {
-  left: 62%;
-  top: 45%;
-  width: 12%;
-  height: 12%;
-}
-
-#patch-left {
-  left: 25%;
-  top: 45%;
-  width: 12%;
-  height: 12%;
-}
-
-/* Road edge lines */
-.road-edge-h {
-  position: absolute;
-  left: 5%; right: 5%;
-  height: 3px;
-  background: rgba(255,255,255,0.3);
-  z-index: 3;
-  pointer-events: none;
-}
-
-#edge-top { top: 45%; }
-#edge-bottom { top: 57%; }
-
-/* === STREET LAMPS === */
-.street-lamp {
-  position: absolute;
-  z-index: 15;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 1.5s ease;
-}
-
-#world.night .street-lamp {
-  opacity: 1;
-}
-
-.lamp-post {
-  width: 4px;
-  height: 18px;
-  background: #666;
-  margin: 0 auto;
-}
-
-.lamp-light {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #ffd54f;
-  box-shadow: 0 0 25px 12px rgba(255,213,79,0.4), 0 0 50px 25px rgba(255,213,79,0.12);
-  margin: 0 auto;
+  top: 0; left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
 }
 
 /* ============================================
-   ZONE 1: HOSPITAL — top-left
+   TILE GRID
    ============================================ */
-#hospital {
-  position: absolute;
-  left: 5%;
-  top: 5%;
-  width: 24vw;
-  height: 30vh;
-  min-width: 170px;
-  min-height: 150px;
-  z-index: 5;
+#tile-grid {
+  display: grid;
+  position: relative;
+}
+
+.tile-cell {
+  position: relative;
+  overflow: hidden;
   cursor: pointer;
 }
 
-.hospital-building {
+/* Edit mode: show grid lines on ALL cells */
+#viewport.edit-mode .tile-cell {
+  border: 1px solid rgba(200,200,200,0.5);
+}
+
+#viewport.edit-mode .tile-cell.empty {
+  background: #f5f5f5;
+  border-color: #ddd;
+}
+
+/* Play mode: no grid lines */
+#viewport.play-mode .tile-cell {
+  border: none;
+}
+
+/* Play mode: fill empty cells with grass */
+#viewport.play-mode .tile-cell.empty {
+  background-image: url('assets/ground_grass.png');
+  background-size: cover;
+  background-position: center;
+  border: none;
+}
+
+/* Night mode dimming for grass cells in play mode */
+#viewport.night.play-mode .tile-cell.empty {
+  filter: brightness(0.3);
+}
+
+.tile-cell .tile-img {
   width: 100%;
   height: 100%;
-  background: #d32f2f;
-  border-radius: 10px;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.2s ease;
+  pointer-events: none;
+}
+
+/* Night mode dimming for placed tiles */
+#viewport.night .tile-cell .tile-img {
+  filter: brightness(0.4);
+}
+
+/* Hospital tile glow in night */
+#viewport.night .tile-cell[data-type="building_hospital"] .tile-img {
+  filter: brightness(0.5) saturate(0.7);
+}
+
+/* Delete flash */
+.tile-cell.delete-flash {
+  animation: deleteFlash 0.3s ease;
+}
+
+@keyframes deleteFlash {
+  0% { background: transparent; }
+  30% { background: rgba(255,0,0,0.4); }
+  100% { background: transparent; }
+}
+
+/* ============================================
+   ROTATE OVERLAY
+   ============================================ */
+.rotate-overlay {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
-  position: relative;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.25);
-  transition: background 1.5s ease, box-shadow 0.3s ease;
-}
-
-#world.night .hospital-building {
-  background: #7b1a1a;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-}
-
-.hospital-cross {
-  width: 35%;
-  height: 55%;
-  position: relative;
-  animation: crossPulse 3s ease-in-out infinite;
-}
-
-.hospital-cross .cross-v {
-  position: absolute;
-  left: 50%; top: 0;
-  transform: translateX(-50%);
-  width: 30%;
-  height: 100%;
-  background: #fff;
-  border-radius: 4px;
-}
-
-.hospital-cross .cross-h {
-  position: absolute;
-  top: 50%; left: 0;
-  transform: translateY(-50%);
-  width: 100%;
-  height: 30%;
-  background: #fff;
-  border-radius: 4px;
-}
-
-@keyframes crossPulse {
-  0%, 100% { opacity: 0.85; }
-  50% { opacity: 1; }
-}
-
-.hospital-building.flash {
-  box-shadow: 0 0 40px 15px rgba(255,0,0,0.6), 0 0 80px 30px rgba(255,0,0,0.3) !important;
-}
-
-/* Hospital windows */
-.hospital-window {
-  position: absolute;
-  width: 12%;
-  height: 10%;
-  background: rgba(255,255,200,0);
-  border: 2px solid rgba(255,255,255,0.2);
-  border-radius: 2px;
-  transition: background 1.5s ease, box-shadow 1.5s ease, border-color 1.5s ease;
-}
-
-#world.night .hospital-window {
-  background: rgba(255,255,150,0.85);
-  box-shadow: 0 0 10px rgba(255,255,150,0.5);
-  border-color: rgba(255,255,150,0.3);
-}
-
-.hospital-window.w1 { top: 12%; left: 8%; }
-.hospital-window.w2 { top: 12%; right: 8%; }
-.hospital-window.w3 { bottom: 12%; left: 8%; }
-.hospital-window.w4 { bottom: 12%; right: 8%; }
-
-/* Hospital barrier — at bottom center, connecting to road */
-#hospital-barrier {
-  position: absolute;
-  bottom: -6vh;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 70px;
-  height: 6vh;
-  min-height: 35px;
-  z-index: 6;
-  cursor: pointer;
-}
-
-.barrier-base {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 14px;
-  height: 100%;
-  background: linear-gradient(to top, #e0e0e0, #bdbdbd);
-  border-radius: 3px;
-  border: 1px solid #999;
-}
-
-.barrier-arm {
-  position: absolute;
-  bottom: calc(100% - 8px);
-  left: calc(50% - 2px);
-  width: 55px;
-  height: 10px;
-  background: repeating-linear-gradient(90deg, #ff1744 0px, #ff1744 9px, #fff 9px, #fff 18px);
-  border-radius: 3px;
-  transform-origin: left center;
-  transition: transform 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-}
-
-.barrier-arm.open {
-  transform: rotate(-88deg);
-}
-
-/* ============================================
-   ZONE 2: HELIPAD — top-right area
-   ============================================ */
-#helipad {
-  position: absolute;
-  right: 6%;
-  top: 4%;
-  width: min(22vw, 220px);
-  height: min(22vw, 220px);
-  min-width: 155px;
-  min-height: 155px;
-  z-index: 5;
-  cursor: pointer;
-}
-
-.helipad-circle {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  background: #757575;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-  transition: background 1.5s ease;
-  border: 4px solid #616161;
-}
-
-#world.night .helipad-circle {
-  background: #4a4a4a;
-  border-color: #3a3a3a;
-}
-
-.helipad-h {
-  font-size: min(9vw, 75px);
-  font-weight: 900;
-  font-family: Arial, Helvetica, sans-serif;
+  font-size: 22px;
   color: #fff;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-  line-height: 1;
+  cursor: pointer;
+  z-index: 200;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+  transition: transform 0.15s ease;
+  pointer-events: auto;
+}
+
+.rotate-overlay:active {
+  transform: translate(-50%, -50%) scale(0.9);
+}
+
+/* ============================================
+   DRAG GHOST
+   ============================================ */
+#drag-ghost {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1000;
+  opacity: 0.8;
+  display: none;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+#drag-ghost img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ============================================
+   TILE PALETTE (edit mode only)
+   ============================================ */
+#tile-palette {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  padding: 10px 16px;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 16px;
+  z-index: 500;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  overflow-x: auto;
+  max-width: 90vw;
+  -webkit-overflow-scrolling: touch;
+}
+
+#tile-palette.hidden {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
   pointer-events: none;
 }
 
-/* Inner circle marking */
-.helipad-circle::before {
-  content: '';
-  position: absolute;
-  width: 75%;
-  height: 75%;
-  border-radius: 50%;
-  border: 3px solid rgba(255,255,255,0.3);
+.palette-tile {
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: grab;
+  border: 2px solid rgba(255,255,255,0.2);
+  transition: border-color 0.15s, transform 0.15s;
+  background: #333;
 }
 
-.helipad-light {
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #4caf50;
-  box-shadow: 0 0 6px rgba(76,175,80,0.5);
-  transition: background 0.15s, box-shadow 0.15s;
+.palette-tile:active {
+  transform: scale(0.92);
 }
 
-.helipad-light.standby {
-  animation: heliStandby 2s ease-in-out infinite;
-}
-
-.helipad-light.active {
-  background: #00e676;
-  box-shadow: 0 0 18px rgba(0,230,118,0.9);
-}
-
-#world.night .helipad-light {
-  box-shadow: 0 0 12px rgba(76,175,80,0.7);
-}
-
-#world.night .helipad-light.active {
-  box-shadow: 0 0 30px rgba(0,230,118,1);
-}
-
-@keyframes heliStandby {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
-}
-
-/* ============================================
-   ZONE 3: PARKING LOT — bottom
-   ============================================ */
-#parking {
-  position: absolute;
-  left: 8%;
-  bottom: 4%;
-  width: min(45vw, 420px);
-  min-width: 280px;
-  height: min(20vh, 160px);
-  min-height: 120px;
-  z-index: 5;
-}
-
-.parking-surface {
+.palette-tile img {
   width: 100%;
   height: 100%;
-  background: #616161;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: space-evenly;
-  padding: 12px 18px;
-  position: relative;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-  transition: background 1.5s ease;
-}
-
-#world.night .parking-surface {
-  background: #3a3a3a;
-}
-
-.parking-bay {
-  width: 21%;
-  height: 80%;
-  border: 3px solid rgba(255,255,255,0.6);
-  border-top: none;
-  border-radius: 0 0 6px 6px;
-  cursor: pointer;
-  transition: background 0.15s;
-  position: relative;
-}
-
-.parking-bay:active {
-  background: rgba(255,255,255,0.1);
-}
-
-/* Parking bay number dots */
-.parking-bay::after {
-  content: '';
-  position: absolute;
-  bottom: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.25);
-}
-
-.park-beep-indicator {
-  position: absolute;
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: transparent;
-  transition: background 0.08s;
-}
-
-.park-beep-indicator.beeping {
-  background: #ff5252;
-  box-shadow: 0 0 10px rgba(255,82,82,0.7);
-}
-
-/* Parking barrier */
-#parking-barrier {
-  position: absolute;
-  top: -6vh;
-  left: 20%;
-  width: 70px;
-  height: 6vh;
-  min-height: 35px;
-  z-index: 6;
-  cursor: pointer;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
 }
 
 /* ============================================
-   TRAFFIC LIGHT — at left intersection
+   FLOATING UI BUTTONS
    ============================================ */
-#traffic-light {
-  position: absolute;
-  left: calc(25% - 45px);
-  top: calc(45% - 90px);
-  width: 38px;
-  z-index: 20;
-  cursor: pointer;
-}
-
-.tl-housing {
-  width: 38px;
-  background: #212121;
-  border-radius: 8px;
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  box-shadow: 0 3px 12px rgba(0,0,0,0.4);
-}
-
-.tl-post {
-  width: 8px;
-  height: 22px;
-  background: #424242;
-  margin: 0 auto;
-  border-radius: 0 0 2px 2px;
-}
-
-.tl-light {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  margin: 0 auto;
-  transition: background 0.2s, box-shadow 0.2s;
-}
-
-.tl-red    { background: #4a1a1a; }
-.tl-yellow { background: #4a4a1a; }
-.tl-green  { background: #1a4a1a; }
-
-.tl-red.on {
-  background: #ff1744;
-  box-shadow: 0 0 18px rgba(255,23,68,0.7);
-}
-.tl-yellow.on {
-  background: #ffd600;
-  box-shadow: 0 0 18px rgba(255,214,0,0.7);
-}
-.tl-green.on {
-  background: #00e676;
-  box-shadow: 0 0 18px rgba(0,230,118,0.7);
-}
-
-/* ============================================
-   DAY/NIGHT TOGGLE — bottom-right corner
-   ============================================ */
-#daynight-btn {
-  position: absolute;
-  bottom: 15px;
-  right: 15px;
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  border: 3px solid rgba(255,255,255,0.5);
-  background: #ffd54f;
-  z-index: 100;
-  cursor: pointer;
+.ui-btn {
+  position: fixed;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #fff;
+  font-size: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-  transition: background 0.6s, border-color 0.6s, box-shadow 0.6s;
+  cursor: pointer;
+  z-index: 500;
+  transition: background 0.2s, transform 0.15s;
+  line-height: 1;
+}
+
+.ui-btn:active {
+  transform: scale(0.9);
+}
+
+/* Mode toggle — top right */
+#mode-btn {
+  top: 16px;
+  right: 16px;
+}
+
+/* Lock button — top left (play mode only) */
+#lock-btn {
+  top: 16px;
+  left: 16px;
+  transition: background 0.2s, transform 0.15s, opacity 0.25s;
+}
+
+#lock-btn.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Clear button — next to mode toggle */
+#clear-btn {
+  top: 16px;
+  right: 72px;
+  font-size: 20px;
+}
+
+#clear-btn.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Day/night toggle */
+#daynight-btn {
+  bottom: 16px;
+  right: 16px;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgba(255,213,79,0.9);
+  border: 2px solid rgba(255,255,255,0.4);
+  transition: background 0.5s, border-color 0.5s, box-shadow 0.5s;
 }
 
 #daynight-btn.night {
-  background: #1a237e;
-  border-color: rgba(200,200,255,0.4);
-  box-shadow: 0 0 15px rgba(100,100,200,0.3);
+  background: rgba(26,35,126,0.9);
+  border-color: rgba(200,200,255,0.3);
+  box-shadow: 0 0 12px rgba(100,100,200,0.3);
 }
 
 .sun-icon, .moon-icon {
   position: absolute;
-  transition: opacity 0.5s, transform 0.5s;
+  transition: opacity 0.4s, transform 0.4s;
 }
 
 .sun-icon {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   background: #ff8f00;
   border-radius: 50%;
-  box-shadow: 0 0 10px rgba(255,143,0,0.6);
+  box-shadow: 0 0 8px rgba(255,143,0,0.5);
 }
 
 .moon-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   background: #e8eaf6;
   border-radius: 50%;
-  box-shadow: inset -5px -2px 0 0 #1a237e;
+  box-shadow: inset -4px -2px 0 0 #1a237e;
   opacity: 0;
-  transform: rotate(-40deg) scale(0.7);
+  transform: rotate(-40deg) scale(0.6);
 }
 
 #daynight-btn.night .sun-icon {
@@ -628,132 +342,105 @@ html, body {
 }
 
 /* ============================================
-   CLOUDS — shadow drifting over the grass
+   PLAY MODE: HOSPITAL SIREN FLASH OVERLAY
    ============================================ */
-.cloud {
+.siren-flash {
   position: absolute;
-  z-index: 50;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(255,0,0,0);
   pointer-events: none;
-  opacity: 0.12;
-  transition: opacity 1.5s ease;
+  z-index: 10;
+  transition: background 0.12s;
 }
 
-#world.night .cloud {
-  opacity: 0.04;
-}
-
-.cloud-blob {
-  background: rgba(0,0,0,0.35);
-  border-radius: 50%;
-  position: absolute;
+.siren-flash.on {
+  background: rgba(255,0,0,0.35);
 }
 </style>
 </head>
 <body>
-<div id="world">
-  <div class="grass"></div>
 
-  <!-- === ROADS === -->
-  <!-- Main horizontal road across the middle -->
-  <div id="road-main" class="road road-h"></div>
-  <!-- Vertical road up-right to helipad -->
-  <div id="road-up" class="road road-v"></div>
-  <!-- Vertical road down-left to parking -->
-  <div id="road-down" class="road road-v"></div>
-  <!-- Intersection patches -->
-  <div id="patch-right" class="road-patch"></div>
-  <div id="patch-left" class="road-patch"></div>
+<div id="viewport" class="edit-mode">
+  <div id="grid-wrapper">
+    <div id="tile-grid"></div>
+  </div>
+</div>
 
-  <!-- === STREET LAMPS (visible at night) === -->
-  <div class="street-lamp" style="left: 15%; top: calc(45% - 38px);">
-    <div class="lamp-light"></div><div class="lamp-post"></div>
-  </div>
-  <div class="street-lamp" style="left: 48%; top: calc(57% + 8px);">
-    <div class="lamp-light"></div><div class="lamp-post"></div>
-  </div>
-  <div class="street-lamp" style="left: calc(62% - 22px); top: 20%;">
-    <div class="lamp-light"></div><div class="lamp-post"></div>
-  </div>
-  <div class="street-lamp" style="left: calc(25% + 14%); top: 75%;">
-    <div class="lamp-light"></div><div class="lamp-post"></div>
-  </div>
-  <div class="street-lamp" style="left: 82%; top: calc(45% - 38px);">
-    <div class="lamp-light"></div><div class="lamp-post"></div>
-  </div>
+<!-- Drag ghost element -->
+<div id="drag-ghost"><img src="" alt=""></div>
 
-  <!-- === CLOUDS === -->
-  <div class="cloud" id="cloud1" style="top: 20%; left: -20%;">
-    <div class="cloud-blob" style="width:130px;height:50px;top:12px;left:0;"></div>
-    <div class="cloud-blob" style="width:90px;height:65px;top:0;left:35px;"></div>
-    <div class="cloud-blob" style="width:100px;height:45px;top:18px;left:70px;"></div>
+<!-- Tile Palette -->
+<div id="tile-palette">
+  <div class="palette-tile" data-tile="ground_grass">
+    <img src="assets/ground_grass.png" alt="Grass" draggable="false">
   </div>
-  <div class="cloud" id="cloud2" style="top: 65%; left: -35%;">
-    <div class="cloud-blob" style="width:110px;height:40px;top:8px;left:0;"></div>
-    <div class="cloud-blob" style="width:75px;height:55px;top:0;left:25px;"></div>
-    <div class="cloud-blob" style="width:85px;height:38px;top:14px;left:55px;"></div>
+  <div class="palette-tile" data-tile="road_vertical">
+    <img src="assets/road_vertical.png" alt="Road" draggable="false">
   </div>
+  <div class="palette-tile" data-tile="road_curved">
+    <img src="assets/road_curved.png" alt="Curve" draggable="false">
+  </div>
+  <div class="palette-tile" data-tile="road_crossroad">
+    <img src="assets/road_crossroad.png" alt="Crossroad" draggable="false">
+  </div>
+  <div class="palette-tile" data-tile="building_hospital">
+    <img src="assets/building_hospital.png" alt="Hospital" draggable="false">
+  </div>
+</div>
 
-  <!-- === ZONE 1: HOSPITAL === -->
-  <div id="hospital">
-    <div class="hospital-building" id="hospital-building">
-      <div class="hospital-cross">
-        <div class="cross-v"></div>
-        <div class="cross-h"></div>
-      </div>
-      <div class="hospital-window w1"></div>
-      <div class="hospital-window w2"></div>
-      <div class="hospital-window w3"></div>
-      <div class="hospital-window w4"></div>
-    </div>
-    <div id="hospital-barrier">
-      <div class="barrier-base"></div>
-      <div class="barrier-arm" id="hospital-barrier-arm"></div>
-    </div>
-  </div>
-
-  <!-- === ZONE 2: HELIPAD === -->
-  <div id="helipad">
-    <div class="helipad-circle" id="helipad-circle">
-      <span class="helipad-h">H</span>
-    </div>
-  </div>
-
-  <!-- === ZONE 3: PARKING === -->
-  <div id="parking">
-    <div id="parking-barrier">
-      <div class="barrier-base"></div>
-      <div class="barrier-arm" id="parking-barrier-arm"></div>
-    </div>
-    <div class="parking-surface">
-      <div class="parking-bay" data-bay="0"><div class="park-beep-indicator"></div></div>
-      <div class="parking-bay" data-bay="1"><div class="park-beep-indicator"></div></div>
-      <div class="parking-bay" data-bay="2"><div class="park-beep-indicator"></div></div>
-      <div class="parking-bay" data-bay="3"><div class="park-beep-indicator"></div></div>
-    </div>
-  </div>
-
-  <!-- === TRAFFIC LIGHT === -->
-  <div id="traffic-light">
-    <div class="tl-housing">
-      <div class="tl-light tl-red on" id="tl-red"></div>
-      <div class="tl-light tl-yellow" id="tl-yellow"></div>
-      <div class="tl-light tl-green" id="tl-green"></div>
-    </div>
-    <div class="tl-post"></div>
-  </div>
-
-  <!-- === DAY/NIGHT TOGGLE === -->
-  <div id="daynight-btn">
-    <div class="sun-icon"></div>
-    <div class="moon-icon"></div>
-  </div>
+<!-- Floating UI -->
+<button class="ui-btn" id="mode-btn" title="Toggle Mode">✏️</button>
+<button class="ui-btn hidden" id="lock-btn" title="Touch Lock">🔓</button>
+<button class="ui-btn" id="clear-btn" title="Clear Grid">🗑️</button>
+<div class="ui-btn" id="daynight-btn">
+  <div class="sun-icon"></div>
+  <div class="moon-icon"></div>
 </div>
 
 <script>
 // =============================================
-// WEB AUDIO API — All sounds synthesized
+// CONFIGURATION
 // =============================================
-let audioCtx = null;
+var GRID_COLS = 10;
+var GRID_ROWS = 14;
+var TILE_SIZE = 100; // px per tile at scale 1
+
+// =============================================
+// STATE
+// =============================================
+var gridData = []; // [{type: string|null, rotation: 0|90|180|270}]
+var currentMode = 'edit'; // 'edit' | 'play'
+var isNight = false;
+var isLocked = true; // play mode touch lock
+var selectedCell = -1; // cell index with rotate overlay showing
+
+// Pan / Zoom state
+var panX = 0, panY = 0, scale = 1;
+var MIN_SCALE = 0.3, MAX_SCALE = 3;
+
+// Drag state
+var dragTileType = null;
+var dragActive = false;
+var dragStartX = 0, dragStartY = 0;
+
+// =============================================
+// DOM REFS
+// =============================================
+var viewport = document.getElementById('viewport');
+var gridWrapper = document.getElementById('grid-wrapper');
+var tileGrid = document.getElementById('tile-grid');
+var palette = document.getElementById('tile-palette');
+var dragGhost = document.getElementById('drag-ghost');
+var ghostImg = dragGhost.querySelector('img');
+var modeBtn = document.getElementById('mode-btn');
+var lockBtn = document.getElementById('lock-btn');
+var clearBtn = document.getElementById('clear-btn');
+var dnBtn = document.getElementById('daynight-btn');
+
+// =============================================
+// WEB AUDIO API — All sounds synthesized (preserved from original)
+// =============================================
+var audioCtx = null;
 
 function ensureAudio() {
   if (!audioCtx) {
@@ -765,16 +452,14 @@ function ensureAudio() {
 
 function playSiren(duration) {
   duration = duration || 2.5;
-  const ctx = ensureAudio();
-  const t = ctx.currentTime;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
+  var ctx = ensureAudio();
+  var t = ctx.currentTime;
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
   osc.type = 'sine';
   osc.frequency.setValueAtTime(400, t);
-  // Sweep up/down 3 times
-  for (let i = 0; i < 6; i++) {
-    const segStart = t + i * (duration / 6);
-    const segEnd = segStart + duration / 6;
+  for (var i = 0; i < 6; i++) {
+    var segEnd = t + (i + 1) * (duration / 6);
     osc.frequency.linearRampToValueAtTime(i % 2 === 0 ? 800 : 400, segEnd);
   }
   gain.gain.setValueAtTime(0.18, t);
@@ -786,13 +471,12 @@ function playSiren(duration) {
 
 function playRotor(duration) {
   duration = duration || 3;
-  const ctx = ensureAudio();
-  const t = ctx.currentTime;
-  const osc = ctx.createOscillator();
-  const lfo = ctx.createOscillator();
-  const lfoGain = ctx.createGain();
-  const master = ctx.createGain();
-
+  var ctx = ensureAudio();
+  var t = ctx.currentTime;
+  var osc = ctx.createOscillator();
+  var lfo = ctx.createOscillator();
+  var lfoGain = ctx.createGain();
+  var master = ctx.createGain();
   osc.type = 'sawtooth';
   osc.frequency.value = 55;
   lfo.type = 'square';
@@ -802,7 +486,6 @@ function playRotor(duration) {
   lfoGain.gain.value = 0.15;
   master.gain.setValueAtTime(0.15, t);
   master.gain.linearRampToValueAtTime(0, t + duration);
-
   lfo.connect(lfoGain);
   lfoGain.connect(master.gain);
   osc.connect(master).connect(ctx.destination);
@@ -811,25 +494,22 @@ function playRotor(duration) {
 }
 
 function playBarrier() {
-  const ctx = ensureAudio();
-  const t = ctx.currentTime;
-  // Servo whirr (filtered noise)
-  const buf = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
-  const ch = buf.getChannelData(0);
-  for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * 0.3;
-  const src = ctx.createBufferSource();
+  var ctx = ensureAudio();
+  var t = ctx.currentTime;
+  var buf = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
+  var ch = buf.getChannelData(0);
+  for (var i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * 0.3;
+  var src = ctx.createBufferSource();
   src.buffer = buf;
-  const bp = ctx.createBiquadFilter();
+  var bp = ctx.createBiquadFilter();
   bp.type = 'bandpass'; bp.frequency.value = 1200; bp.Q.value = 5;
-  const ng = ctx.createGain();
+  var ng = ctx.createGain();
   ng.gain.setValueAtTime(0.1, t);
   ng.gain.linearRampToValueAtTime(0, t + 0.5);
   src.connect(bp).connect(ng).connect(ctx.destination);
   src.start(t); src.stop(t + 0.5);
-
-  // Confirmation beep
-  const beep = ctx.createOscillator();
-  const bg = ctx.createGain();
+  var beep = ctx.createOscillator();
+  var bg = ctx.createGain();
   beep.type = 'sine'; beep.frequency.value = 880;
   bg.gain.setValueAtTime(0, t);
   bg.gain.setValueAtTime(0.12, t + 0.35);
@@ -839,10 +519,10 @@ function playBarrier() {
 }
 
 function playClick() {
-  const ctx = ensureAudio();
-  const t = ctx.currentTime;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
+  var ctx = ensureAudio();
+  var t = ctx.currentTime;
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
   osc.type = 'square';
   osc.frequency.setValueAtTime(1500, t);
   osc.frequency.exponentialRampToValueAtTime(200, t + 0.03);
@@ -853,13 +533,13 @@ function playClick() {
 }
 
 function playParkingBeep() {
-  const ctx = ensureAudio();
-  const t = ctx.currentTime;
+  var ctx = ensureAudio();
+  var t = ctx.currentTime;
   var total = 1.8;
   var count = 10;
   for (var i = 0; i < count; i++) {
     var p = i / count;
-    var when = t + p * p * total; // accelerating
+    var when = t + p * p * total;
     var osc = ctx.createOscillator();
     var g = ctx.createGain();
     osc.type = 'sine'; osc.frequency.value = 1000;
@@ -872,12 +552,12 @@ function playParkingBeep() {
 }
 
 function playTicket() {
-  const ctx = ensureAudio();
-  const t = ctx.currentTime;
-  const osc = ctx.createOscillator();
-  const lfo = ctx.createOscillator();
-  const lg = ctx.createGain();
-  const mg = ctx.createGain();
+  var ctx = ensureAudio();
+  var t = ctx.currentTime;
+  var osc = ctx.createOscillator();
+  var lfo = ctx.createOscillator();
+  var lg = ctx.createGain();
+  var mg = ctx.createGain();
   osc.type = 'square'; osc.frequency.value = 300;
   lfo.type = 'square'; lfo.frequency.value = 40;
   lg.gain.value = 200;
@@ -889,180 +569,733 @@ function playTicket() {
   osc.stop(t + 0.35); lfo.stop(t + 0.35);
 }
 
-// =============================================
-// TOUCH / INTERACTION
-// =============================================
+function playPlaceTile() {
+  var ctx = ensureAudio();
+  var t = ctx.currentTime;
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(600, t);
+  osc.frequency.exponentialRampToValueAtTime(900, t + 0.08);
+  gain.gain.setValueAtTime(0.1, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.12);
+}
 
-// Block all default touch behavior (scroll, zoom, callout)
+function playDeleteTile() {
+  var ctx = ensureAudio();
+  var t = ctx.currentTime;
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(500, t);
+  osc.frequency.exponentialRampToValueAtTime(200, t + 0.15);
+  gain.gain.setValueAtTime(0.1, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.2);
+}
+
+function playRotateSound() {
+  var ctx = ensureAudio();
+  var t = ctx.currentTime;
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(400, t);
+  osc.frequency.linearRampToValueAtTime(700, t + 0.1);
+  gain.gain.setValueAtTime(0.08, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.12);
+}
+
+// =============================================
+// GRID INITIALIZATION
+// =============================================
+function initGrid() {
+  // Initialize grid data array
+  gridData = [];
+  for (var i = 0; i < GRID_COLS * GRID_ROWS; i++) {
+    gridData.push({ type: null, rotation: 0 });
+  }
+
+  // Try to load from localStorage
+  loadGridState();
+
+  // Build DOM
+  buildGridDOM();
+
+  // Center grid in viewport
+  var vw = window.innerWidth;
+  var vh = window.innerHeight;
+  var gw = GRID_COLS * TILE_SIZE;
+  var gh = GRID_ROWS * TILE_SIZE;
+
+  // Fit grid to viewport with some padding
+  var scaleX = (vw * 0.85) / gw;
+  var scaleY = (vh * 0.85) / gh;
+  scale = Math.min(scaleX, scaleY, 1.5);
+  scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
+
+  panX = (vw - gw * scale) / 2;
+  panY = (vh - gh * scale) / 2;
+
+  applyTransform();
+}
+
+function buildGridDOM() {
+  tileGrid.innerHTML = '';
+  tileGrid.style.gridTemplateColumns = 'repeat(' + GRID_COLS + ', ' + TILE_SIZE + 'px)';
+  tileGrid.style.gridTemplateRows = 'repeat(' + GRID_ROWS + ', ' + TILE_SIZE + 'px)';
+  tileGrid.style.width = (GRID_COLS * TILE_SIZE) + 'px';
+  tileGrid.style.height = (GRID_ROWS * TILE_SIZE) + 'px';
+
+  for (var i = 0; i < GRID_COLS * GRID_ROWS; i++) {
+    var cell = document.createElement('div');
+    cell.className = 'tile-cell';
+    cell.dataset.idx = i;
+
+    var data = gridData[i];
+    if (data.type) {
+      cell.classList.remove('empty');
+      cell.dataset.type = data.type;
+      var img = document.createElement('img');
+      img.className = 'tile-img';
+      img.src = 'assets/' + data.type + '.png';
+      img.draggable = false;
+      img.style.transform = 'rotate(' + data.rotation + 'deg)';
+      cell.appendChild(img);
+    } else {
+      cell.classList.add('empty');
+    }
+
+    cell.style.width = TILE_SIZE + 'px';
+    cell.style.height = TILE_SIZE + 'px';
+
+    tileGrid.appendChild(cell);
+  }
+}
+
+function applyTransform() {
+  gridWrapper.style.transform = 'translate(' + panX + 'px, ' + panY + 'px) scale(' + scale + ')';
+}
+
+// =============================================
+// TILE OPERATIONS
+// =============================================
+function placeTile(cellIdx, tileType, rotation) {
+  if (cellIdx < 0 || cellIdx >= gridData.length) return;
+  rotation = rotation || 0;
+  gridData[cellIdx] = { type: tileType, rotation: rotation };
+
+  var cell = tileGrid.children[cellIdx];
+  cell.classList.remove('empty');
+  cell.dataset.type = tileType;
+
+  // Remove old content
+  while (cell.firstChild) cell.removeChild(cell.firstChild);
+
+  var img = document.createElement('img');
+  img.className = 'tile-img';
+  img.src = 'assets/' + tileType + '.png';
+  img.draggable = false;
+  img.style.transform = 'rotate(' + rotation + 'deg)';
+  cell.appendChild(img);
+
+  playPlaceTile();
+  saveGridState();
+}
+
+function removeTile(cellIdx) {
+  if (cellIdx < 0 || cellIdx >= gridData.length) return;
+  gridData[cellIdx] = { type: null, rotation: 0 };
+
+  var cell = tileGrid.children[cellIdx];
+  cell.classList.add('empty');
+  delete cell.dataset.type;
+
+  while (cell.firstChild) cell.removeChild(cell.firstChild);
+
+  cell.classList.add('delete-flash');
+  setTimeout(function() { cell.classList.remove('delete-flash'); }, 300);
+
+  playDeleteTile();
+  saveGridState();
+}
+
+function rotateTile(cellIdx) {
+  if (cellIdx < 0 || cellIdx >= gridData.length) return;
+  var d = gridData[cellIdx];
+  if (!d.type) return;
+
+  d.rotation = (d.rotation + 90) % 360;
+
+  var cell = tileGrid.children[cellIdx];
+  var img = cell.querySelector('.tile-img');
+  if (img) {
+    img.style.transform = 'rotate(' + d.rotation + 'deg)';
+  }
+
+  playRotateSound();
+  saveGridState();
+}
+
+// =============================================
+// ROTATE OVERLAY
+// =============================================
+function showRotateOverlay(cellIdx) {
+  dismissRotateOverlay();
+  if (!gridData[cellIdx].type) return;
+  selectedCell = cellIdx;
+
+  var cell = tileGrid.children[cellIdx];
+  var overlay = document.createElement('div');
+  overlay.className = 'rotate-overlay';
+  overlay.id = 'rotate-overlay';
+  overlay.textContent = '↻';
+
+  overlay.addEventListener('touchstart', function(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    rotateTile(cellIdx);
+  }, { passive: false });
+
+  overlay.addEventListener('click', function(e) {
+    e.stopPropagation();
+    rotateTile(cellIdx);
+  });
+
+  cell.appendChild(overlay);
+}
+
+function dismissRotateOverlay() {
+  var existing = document.getElementById('rotate-overlay');
+  if (existing) existing.parentNode.removeChild(existing);
+  selectedCell = -1;
+}
+
+// =============================================
+// PERSISTENCE — localStorage
+// =============================================
+var STORAGE_KEY = 'toyscape_grid_v1';
+
+function saveGridState() {
+  try {
+    var compact = [];
+    for (var i = 0; i < gridData.length; i++) {
+      var d = gridData[i];
+      if (d.type) {
+        compact.push({ i: i, t: d.type, r: d.rotation });
+      }
+    }
+    var state = {
+      cols: GRID_COLS,
+      rows: GRID_ROWS,
+      tiles: compact
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    // localStorage may be unavailable
+  }
+}
+
+function loadGridState() {
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    var state = JSON.parse(raw);
+    if (state.cols !== GRID_COLS || state.rows !== GRID_ROWS) return; // grid size changed
+
+    for (var j = 0; j < state.tiles.length; j++) {
+      var t = state.tiles[j];
+      if (t.i >= 0 && t.i < gridData.length) {
+        gridData[t.i] = { type: t.t, rotation: t.r || 0 };
+      }
+    }
+  } catch (e) {
+    // ignore parse errors
+  }
+}
+
+function clearGrid() {
+  for (var i = 0; i < gridData.length; i++) {
+    gridData[i] = { type: null, rotation: 0 };
+  }
+  buildGridDOM();
+  saveGridState();
+}
+
+// =============================================
+// MODE SWITCHING
+// =============================================
+function setMode(mode) {
+  currentMode = mode;
+  viewport.classList.remove('edit-mode', 'play-mode');
+  viewport.classList.add(mode + '-mode');
+
+  if (mode === 'edit') {
+    modeBtn.textContent = '✏️';
+    palette.classList.remove('hidden');
+    lockBtn.classList.add('hidden');
+    clearBtn.classList.remove('hidden');
+    dismissRotateOverlay();
+  } else {
+    modeBtn.textContent = '▶️';
+    palette.classList.add('hidden');
+    lockBtn.classList.remove('hidden');
+    clearBtn.classList.add('hidden');
+    dismissRotateOverlay();
+    // Reset lock to locked on entering play mode
+    isLocked = true;
+    lockBtn.textContent = '🔒';
+  }
+}
+
+// =============================================
+// PAN & ZOOM
+// =============================================
+var pointers = {}; // active pointers by ID
+var lastPinchDist = 0;
+var lastPinchCenterX = 0, lastPinchCenterY = 0;
+var isPanning = false;
+var panStartX = 0, panStartY = 0;
+var panStartPanX = 0, panStartPanY = 0;
+
+// Mouse wheel zoom
+viewport.addEventListener('wheel', function(e) {
+  e.preventDefault();
+  var rect = viewport.getBoundingClientRect();
+  var mx = e.clientX - rect.left;
+  var my = e.clientY - rect.top;
+
+  var zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
+  var newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * zoomFactor));
+
+  // Zoom toward cursor position
+  panX = mx - (mx - panX) * (newScale / scale);
+  panY = my - (my - panY) * (newScale / scale);
+  scale = newScale;
+
+  applyTransform();
+}, { passive: false });
+
+// Pointer tracking for touch pan/zoom
+function getPointerArray() {
+  var arr = [];
+  for (var id in pointers) arr.push(pointers[id]);
+  return arr;
+}
+
+function getPinchData(arr) {
+  var dx = arr[1].x - arr[0].x;
+  var dy = arr[1].y - arr[0].y;
+  return {
+    dist: Math.sqrt(dx * dx + dy * dy),
+    cx: (arr[0].x + arr[1].x) / 2,
+    cy: (arr[0].y + arr[1].y) / 2
+  };
+}
+
+// =============================================
+// TOUCH HANDLING — complex multi-purpose
+// =============================================
+var longPressTimer = null;
+var longPressCellIdx = -1;
+var touchStartTime = 0;
+var touchMoved = false;
+var singleTouchStartX = 0, singleTouchStartY = 0;
+
+// Prevent all default touch behavior on the document
 document.addEventListener('touchstart', function(e) { e.preventDefault(); }, { passive: false });
 document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
 document.addEventListener('touchend', function(e) { e.preventDefault(); }, { passive: false });
 document.addEventListener('gesturestart', function(e) { e.preventDefault(); }, { passive: false });
 document.addEventListener('gesturechange', function(e) { e.preventDefault(); }, { passive: false });
 
-// Unified tap handler supporting multitouch
-function onTap(el, fn) {
-  el.addEventListener('touchstart', function(e) {
-    e.stopPropagation();
-    fn(e);
-  }, { passive: false });
-  el.addEventListener('click', function(e) {
-    e.stopPropagation();
-    fn(e);
-  });
+// --- POINTER DOWN ---
+viewport.addEventListener('pointerdown', function(e) {
+  // Don't track pointers on UI buttons
+  if (e.target.closest('.ui-btn') || e.target.closest('#tile-palette') || e.target.closest('.rotate-overlay')) return;
+
+  pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+  var pArr = getPointerArray();
+
+  if (pArr.length === 2) {
+    // Start pinch
+    cancelLongPress();
+    cancelDrag();
+    var pd = getPinchData(pArr);
+    lastPinchDist = pd.dist;
+    lastPinchCenterX = pd.cx;
+    lastPinchCenterY = pd.cy;
+    isPanning = false;
+    return;
+  }
+
+  if (pArr.length === 1) {
+    touchStartTime = Date.now();
+    touchMoved = false;
+    singleTouchStartX = e.clientX;
+    singleTouchStartY = e.clientY;
+
+    // Check if touch is on a tile cell
+    var cellIdx = getCellAtPointer(e.clientX, e.clientY);
+
+    if (currentMode === 'edit' && cellIdx >= 0 && gridData[cellIdx].type) {
+      // Start long-press timer for delete
+      longPressCellIdx = cellIdx;
+      longPressTimer = setTimeout(function() {
+        if (longPressCellIdx >= 0) {
+          removeTile(longPressCellIdx);
+          longPressCellIdx = -1;
+        }
+      }, 500);
+    }
+  }
+}, { passive: false });
+
+// --- POINTER MOVE ---
+viewport.addEventListener('pointermove', function(e) {
+  if (!pointers[e.pointerId]) return;
+
+  var prevX = pointers[e.pointerId].x;
+  var prevY = pointers[e.pointerId].y;
+  pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+
+  var pArr = getPointerArray();
+
+  // Detect movement to cancel long-press / flag as moved
+  var dx = e.clientX - singleTouchStartX;
+  var dy = e.clientY - singleTouchStartY;
+  if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+    touchMoved = true;
+    cancelLongPress();
+  }
+
+  if (pArr.length >= 2) {
+    // Pinch zoom + pan
+    var pd = getPinchData(pArr);
+
+    // Zoom
+    var zoomRatio = pd.dist / lastPinchDist;
+    var newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * zoomRatio));
+
+    // Pan during pinch (move with the center of the two fingers)
+    var dCx = pd.cx - lastPinchCenterX;
+    var dCy = pd.cy - lastPinchCenterY;
+
+    // Zoom toward pinch center + translate by finger movement
+    panX = panX + dCx - (lastPinchCenterX - panX) * (newScale / scale - 1);
+    panY = panY + dCy - (lastPinchCenterY - panY) * (newScale / scale - 1);
+    scale = newScale;
+
+    lastPinchDist = pd.dist;
+    lastPinchCenterX = pd.cx;
+    lastPinchCenterY = pd.cy;
+
+    applyTransform();
+    return;
+  }
+
+  // Single pointer — drag ghost or pan (mouse drag on empty)
+  if (dragActive) {
+    updateDragGhost(e.clientX, e.clientY);
+    return;
+  }
+
+  // Mouse: single-click-drag on empty space = pan
+  if (e.pointerType === 'mouse' && touchMoved && !dragActive) {
+    panX += e.clientX - prevX;
+    panY += e.clientY - prevY;
+    applyTransform();
+  }
+}, { passive: false });
+
+// --- POINTER UP ---
+viewport.addEventListener('pointerup', function(e) {
+  if (!pointers[e.pointerId]) return;
+  delete pointers[e.pointerId];
+
+  cancelLongPress();
+
+  // Handle drag drop
+  if (dragActive) {
+    finishDrag(e.clientX, e.clientY);
+    return;
+  }
+
+  // Single tap (not moved, short duration)
+  var elapsed = Date.now() - touchStartTime;
+  if (!touchMoved && elapsed < 400) {
+    handleTap(e.clientX, e.clientY);
+  }
+}, { passive: false });
+
+viewport.addEventListener('pointercancel', function(e) {
+  delete pointers[e.pointerId];
+  cancelLongPress();
+  cancelDrag();
+}, { passive: false });
+
+// Mouse pan via middle-click or right-click drag (alternative)
+viewport.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+
+// =============================================
+// CELL LOOKUP — convert screen coords to grid cell
+// =============================================
+function getCellAtPointer(clientX, clientY) {
+  // Convert screen coords to grid coords
+  var gx = (clientX - panX) / scale;
+  var gy = (clientY - panY) / scale;
+
+  var col = Math.floor(gx / TILE_SIZE);
+  var row = Math.floor(gy / TILE_SIZE);
+
+  if (col < 0 || col >= GRID_COLS || row < 0 || row >= GRID_ROWS) return -1;
+  return row * GRID_COLS + col;
 }
 
-// --- HOSPITAL ---
-var sirenActive = false;
-onTap(document.getElementById('hospital-building'), function() {
-  if (sirenActive) return;
-  sirenActive = true;
-  playSiren(2.5);
-  var bld = document.getElementById('hospital-building');
-  var n = 0;
-  var iv = setInterval(function() {
-    bld.classList.toggle('flash');
-    n++;
-    if (n >= 10) {
-      clearInterval(iv);
-      bld.classList.remove('flash');
-      sirenActive = false;
+// =============================================
+// TAP HANDLING
+// =============================================
+function handleTap(clientX, clientY) {
+  var cellIdx = getCellAtPointer(clientX, clientY);
+
+  if (currentMode === 'edit') {
+    // Dismiss rotate overlay if tapping elsewhere
+    if (selectedCell >= 0 && cellIdx !== selectedCell) {
+      dismissRotateOverlay();
+      return;
     }
-  }, 250);
-});
-
-// Hospital barrier
-var hBarrierArm = document.getElementById('hospital-barrier-arm');
-var hBarrierOpen = false;
-onTap(document.getElementById('hospital-barrier'), function() {
-  playBarrier();
-  hBarrierOpen = !hBarrierOpen;
-  hBarrierArm.classList.toggle('open', hBarrierOpen);
-});
-
-// --- HELIPAD ---
-var heliActive = false;
-var heliLights = [];
-var heliCircle = document.getElementById('helipad-circle');
-
-// Create 8 landing lights around the circle edge
-(function() {
-  for (var i = 0; i < 8; i++) {
-    var light = document.createElement('div');
-    light.className = 'helipad-light standby';
-    var angle = (i / 8) * Math.PI * 2 - Math.PI / 2;
-    var r = 46;
-    light.style.left = 'calc(50% + ' + (Math.cos(angle) * r) + '% - 6px)';
-    light.style.top = 'calc(50% + ' + (Math.sin(angle) * r) + '% - 6px)';
-    // Stagger standby animation
-    light.style.animationDelay = (i * 0.25) + 's';
-    heliCircle.appendChild(light);
-    heliLights.push(light);
+    // Show rotate overlay on placed tile
+    if (cellIdx >= 0 && gridData[cellIdx].type && selectedCell !== cellIdx) {
+      showRotateOverlay(cellIdx);
+      return;
+    }
+    dismissRotateOverlay();
   }
-})();
 
-onTap(document.getElementById('helipad'), function() {
-  if (heliActive) return;
-  heliActive = true;
-  playRotor(3);
-  var idx = 0;
-  var iv = setInterval(function() {
-    heliLights.forEach(function(l) { l.classList.remove('active'); });
-    heliLights[idx % heliLights.length].classList.add('active');
-    idx++;
-    if (idx >= heliLights.length * 3) {
-      clearInterval(iv);
-      heliLights.forEach(function(l) { l.classList.remove('active'); });
-      heliActive = false;
+  if (currentMode === 'play') {
+    // Locked = no interactions
+    if (isLocked) return;
+
+    // Trigger sounds based on tile type
+    if (cellIdx >= 0) {
+      var tileType = gridData[cellIdx].type;
+      triggerTileSound(cellIdx, tileType);
     }
-  }, 110);
-});
+  }
+}
 
-// --- PARKING BARRIER ---
-var pBarrierArm = document.getElementById('parking-barrier-arm');
-var pBarrierOpen = false;
-onTap(document.getElementById('parking-barrier'), function() {
-  playBarrier();
-  playTicket();
-  pBarrierOpen = !pBarrierOpen;
-  pBarrierArm.classList.toggle('open', pBarrierOpen);
-});
+// =============================================
+// PLAY MODE — TILE SOUNDS
+// =============================================
+var sirenActive = false;
 
-// --- PARKING BAYS ---
-var bays = document.querySelectorAll('.parking-bay');
-var bayBusy = {};
+function triggerTileSound(cellIdx, tileType) {
+  if (!tileType) return;
 
-bays.forEach(function(bay) {
-  onTap(bay, function() {
-    var idx = bay.dataset.bay;
-    if (bayBusy[idx]) return;
-    bayBusy[idx] = true;
+  var cell = tileGrid.children[cellIdx];
 
-    var dur = playParkingBeep();
-    var dot = bay.querySelector('.park-beep-indicator');
+  if (tileType === 'building_hospital') {
+    if (sirenActive) return;
+    sirenActive = true;
+    playSiren(2.5);
+
+    // Flash effect
+    var flash = cell.querySelector('.siren-flash');
+    if (!flash) {
+      flash = document.createElement('div');
+      flash.className = 'siren-flash';
+      cell.appendChild(flash);
+    }
     var n = 0;
     var iv = setInterval(function() {
-      dot.classList.toggle('beeping');
+      flash.classList.toggle('on');
       n++;
-      if (n >= 20) {
+      if (n >= 10) {
         clearInterval(iv);
-        dot.classList.remove('beeping');
-        delete bayBusy[idx];
+        flash.classList.remove('on');
+        sirenActive = false;
       }
-    }, dur * 1000 / 20);
-  });
-});
+    }, 250);
+  }
 
-// --- TRAFFIC LIGHT ---
-var tlState = 0;
-var tlEls = [
-  document.getElementById('tl-red'),
-  document.getElementById('tl-yellow'),
-  document.getElementById('tl-green')
-];
+  if (tileType === 'road_crossroad') {
+    // Traffic light click
+    playClick();
+    // Brief visual pulse
+    cell.style.outline = '3px solid rgba(255,214,0,0.6)';
+    setTimeout(function() { cell.style.outline = ''; }, 300);
+  }
 
-function setTL() {
-  tlEls.forEach(function(el, i) {
-    el.classList.toggle('on', i === tlState);
-  });
+  if (tileType === 'road_vertical' || tileType === 'road_curved') {
+    // Barrier / parking sound
+    playBarrier();
+  }
+
+  if (tileType === 'ground_grass') {
+    // Soft ambient click
+    playClick();
+  }
 }
 
-onTap(document.getElementById('traffic-light'), function() {
+// =============================================
+// DRAG & DROP — from palette onto grid
+// =============================================
+var DRAG_THRESHOLD = 10;
+var ghostSize = 80;
+
+// Palette tile drag (touch)
+palette.addEventListener('pointerdown', function(e) {
+  var paletteTile = e.target.closest('.palette-tile');
+  if (!paletteTile) return;
+  e.stopPropagation();
+  e.preventDefault();
+
+  dragTileType = paletteTile.dataset.tile;
+  dragStartX = e.clientX;
+  dragStartY = e.clientY;
+
+  // Start drag immediately
+  startDrag(e.clientX, e.clientY);
+
+  // Track this pointer globally for drag
+  function onMove(ev) {
+    if (ev.pointerId !== e.pointerId) return;
+    updateDragGhost(ev.clientX, ev.clientY);
+  }
+  function onUp(ev) {
+    if (ev.pointerId !== e.pointerId) return;
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onUp);
+    finishDrag(ev.clientX, ev.clientY);
+  }
+  document.addEventListener('pointermove', onMove, { passive: false });
+  document.addEventListener('pointerup', onUp, { passive: false });
+  document.addEventListener('pointercancel', onUp, { passive: false });
+}, { passive: false });
+
+function startDrag(clientX, clientY) {
+  dragActive = true;
+  ghostImg.src = 'assets/' + dragTileType + '.png';
+
+  // Size ghost relative to current tile scale
+  ghostSize = Math.max(60, Math.min(120, TILE_SIZE * scale));
+  dragGhost.style.width = ghostSize + 'px';
+  dragGhost.style.height = ghostSize + 'px';
+  dragGhost.style.display = 'block';
+
+  updateDragGhost(clientX, clientY);
+}
+
+function updateDragGhost(clientX, clientY) {
+  dragGhost.style.left = (clientX - ghostSize / 2) + 'px';
+  dragGhost.style.top = (clientY - ghostSize / 2) + 'px';
+
+  // Highlight target cell
+  clearCellHighlights();
+  var cellIdx = getCellAtPointer(clientX, clientY);
+  if (cellIdx >= 0) {
+    tileGrid.children[cellIdx].style.outline = '3px solid rgba(76,175,80,0.7)';
+  }
+}
+
+function finishDrag(clientX, clientY) {
+  if (!dragActive) return;
+  dragActive = false;
+  dragGhost.style.display = 'none';
+  clearCellHighlights();
+
+  var cellIdx = getCellAtPointer(clientX, clientY);
+  if (cellIdx >= 0 && dragTileType) {
+    placeTile(cellIdx, dragTileType, 0);
+  }
+
+  dragTileType = null;
+}
+
+function cancelDrag() {
+  dragActive = false;
+  dragGhost.style.display = 'none';
+  clearCellHighlights();
+  dragTileType = null;
+}
+
+function clearCellHighlights() {
+  var cells = tileGrid.children;
+  for (var i = 0; i < cells.length; i++) {
+    cells[i].style.outline = '';
+  }
+}
+
+// =============================================
+// LONG PRESS HELPERS
+// =============================================
+function cancelLongPress() {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+  longPressCellIdx = -1;
+}
+
+// =============================================
+// UI BUTTON HANDLERS
+// =============================================
+
+// Mode toggle
+modeBtn.addEventListener('pointerdown', function(e) { e.stopPropagation(); }, { passive: false });
+modeBtn.addEventListener('click', function(e) {
+  e.stopPropagation();
   playClick();
-  tlState = (tlState + 1) % 3;
-  setTL();
+  if (currentMode === 'edit') {
+    setMode('play');
+  } else {
+    setMode('edit');
+  }
 });
 
-// --- DAY/NIGHT ---
-var world = document.getElementById('world');
-var dnBtn = document.getElementById('daynight-btn');
-var isNight = false;
+// Lock toggle
+lockBtn.addEventListener('pointerdown', function(e) { e.stopPropagation(); }, { passive: false });
+lockBtn.addEventListener('click', function(e) {
+  e.stopPropagation();
+  playClick();
+  isLocked = !isLocked;
+  lockBtn.textContent = isLocked ? '🔒' : '🔓';
+});
 
-onTap(dnBtn, function() {
+// Clear grid
+clearBtn.addEventListener('pointerdown', function(e) { e.stopPropagation(); }, { passive: false });
+clearBtn.addEventListener('click', function(e) {
+  e.stopPropagation();
+  if (confirm('Alle Tiles löschen?')) {
+    clearGrid();
+    playDeleteTile();
+  }
+});
+
+// Day/Night
+dnBtn.addEventListener('pointerdown', function(e) { e.stopPropagation(); }, { passive: false });
+dnBtn.addEventListener('click', function(e) {
+  e.stopPropagation();
   playClick();
   isNight = !isNight;
-  world.classList.toggle('night', isNight);
+  viewport.classList.toggle('night', isNight);
   dnBtn.classList.toggle('night', isNight);
 });
 
 // =============================================
-// AMBIENT — cloud shadows drifting
+// INIT
 // =============================================
-var c1 = document.getElementById('cloud1');
-var c2 = document.getElementById('cloud2');
-var c1x = -20, c2x = -35;
+initGrid();
+setMode('edit');
 
-function animate() {
-  c1x += 0.018;
-  c2x += 0.012;
-  if (c1x > 110) c1x = -22;
-  if (c2x > 115) c2x = -35;
-  c1.style.left = c1x + '%';
-  c2.style.left = c2x + '%';
-  requestAnimationFrame(animate);
-}
-
-requestAnimationFrame(animate);
+// Hide lock button initially (edit mode)
+lockBtn.classList.add('hidden');
 </script>
 </body>
 </html>
