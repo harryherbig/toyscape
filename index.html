@@ -154,6 +154,7 @@ html, body {
   box-shadow: 0 2px 10px rgba(0,0,0,0.4);
   transition: transform 0.15s ease;
   pointer-events: auto;
+  touch-action: manipulation;
 }
 
 .rotate-overlay:active {
@@ -219,6 +220,7 @@ html, body {
   border: 2px solid rgba(255,255,255,0.2);
   transition: border-color 0.15s, transform 0.15s;
   background: #333;
+  touch-action: none;
 }
 
 .palette-tile:active {
@@ -254,6 +256,7 @@ html, body {
   z-index: 500;
   transition: background 0.2s, transform 0.15s;
   line-height: 1;
+  touch-action: manipulation;
 }
 
 .ui-btn:active {
@@ -907,10 +910,13 @@ var touchStartTime = 0;
 var touchMoved = false;
 var singleTouchStartX = 0, singleTouchStartY = 0;
 
-// Prevent all default touch behavior on the document
-document.addEventListener('touchstart', function(e) { e.preventDefault(); }, { passive: false });
-document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
-document.addEventListener('touchend', function(e) { e.preventDefault(); }, { passive: false });
+// Prevent default touch behavior, but allow it on UI buttons so click events fire
+function shouldPreventTouch(e) {
+  return !e.target.closest('.ui-btn') && !e.target.closest('#tile-palette') && !e.target.closest('.rotate-overlay');
+}
+document.addEventListener('touchstart', function(e) { if (shouldPreventTouch(e)) e.preventDefault(); }, { passive: false });
+document.addEventListener('touchmove', function(e) { if (shouldPreventTouch(e)) e.preventDefault(); }, { passive: false });
+document.addEventListener('touchend', function(e) { if (shouldPreventTouch(e)) e.preventDefault(); }, { passive: false });
 document.addEventListener('gesturestart', function(e) { e.preventDefault(); }, { passive: false });
 document.addEventListener('gesturechange', function(e) { e.preventDefault(); }, { passive: false });
 
