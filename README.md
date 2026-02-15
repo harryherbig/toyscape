@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://harryherbig.github.io/digitale-spielmatte/">Live Demo</a>
+  <a href="https://harryherbig.github.io/toyscape/">Live Demo</a>
 </p>
 
 ---
@@ -88,7 +88,7 @@ Every sound is built from scratch with the Web Audio API:
 ## Running locally
 
 ```
-git clone https://github.com/harryherbig/digitale-spielmatte.git
+git clone https://github.com/harryherbig/toyscape.git
 open index.html
 ```
 
