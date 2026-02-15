@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Spielmatte</title>
+<style>
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  touch-action: none;
+}
+
+#world {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  transition: background 1.5s ease;
+}
+
+/* === GRASS BACKGROUND === */
+.grass {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #7ec850;
+  transition: background 1.5s ease;
+  z-index: 0;
+}
+
+#world.night .grass {
+  background: #1a2a1a;
+}
+
+/* Subtle grass texture dots */
+.grass::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background:
+    radial-gradient(circle at 15% 25%, rgba(90,160,40,0.4) 0%, transparent 1.5%),
+    radial-gradient(circle at 55% 12%, rgba(80,150,35,0.3) 0%, transparent 1%),
+    radial-gradient(circle at 85% 65%, rgba(100,170,50,0.35) 0%, transparent 2%),
+    radial-gradient(circle at 35% 75%, rgba(85,155,40,0.3) 0%, transparent 1.5%),
+    radial-gradient(circle at 70% 40%, rgba(95,165,45,0.25) 0%, transparent 1%);
+  pointer-events: none;
+}
+
+#world.night .grass::after {
+  opacity: 0.15;
+}
+
+/* ============================================
+   ROAD LAYOUT — Inverted-T shape
+
+   Horizontal road runs across the middle (y ~48%)
+   Vertical road goes UP from intersection to helipad (x ~65%)
+
+   Hospital: top-left, connects DOWN to horizontal road
+   Helipad: top-right, connects via vertical road
+   Parking: bottom-center, connects UP to horizontal road
+   ============================================ */
+
+.road {
+  position: absolute;
+  background: #555;
+  z-index: 1;
+  transition: background 1.5s ease;
+}
+
+#world.night .road {
+  background: #333;
+}
+
+/* Dashed center lines */
+.road-h::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 0; right: 0;
+  height: 4px;
+  transform: translateY(-50%);
+  background: repeating-linear-gradient(90deg, #fff 0px, #fff 25px, transparent 25px, transparent 50px);
+  opacity: 0.6;
+}
+
+.road-v::after {
+  content: '';
+  position: absolute;
+  left: 50%; top: 0; bottom: 0;
+  width: 4px;
+  transform: translateX(-50%);
+  background: repeating-linear-gradient(180deg, #fff 0px, #fff 25px, transparent 25px, transparent 50px);
+  opacity: 0.6;
+}
+
+/* Main horizontal road */
+#road-main {
+  left: 5%;
+  right: 5%;
+  top: 45%;
+  height: 12%;
+}
+
+/* Vertical road going up from intersection to helipad */
+#road-up {
+  left: 62%;
+  top: 5%;
+  width: 12%;
+  height: 40%;
+}
+
+/* Vertical road going down from intersection to parking */
+#road-down {
+  left: 25%;
+  top: 57%;
+  width: 12%;
+  height: 30%;
+}
+
+/* Intersection patches */
+.road-patch {
+  position: absolute;
+  background: #555;
+  z-index: 2;
+  transition: background 1.5s ease;
+}
+
+#world.night .road-patch {
+  background: #333;
+}
+
+#patch-right {
+  left: 62%;
+  top: 45%;
+  width: 12%;
+  height: 12%;
+}
+
+#patch-left {
+  left: 25%;
+  top: 45%;
+  width: 12%;
+  height: 12%;
+}
+
+/* Road edge lines */
+.road-edge-h {
+  position: absolute;
+  left: 5%; right: 5%;
+  height: 3px;
+  background: rgba(255,255,255,0.3);
+  z-index: 3;
+  pointer-events: none;
+}
+
+#edge-top { top: 45%; }
+#edge-bottom { top: 57%; }
+
+/* === STREET LAMPS === */
+.street-lamp {
+  position: absolute;
+  z-index: 15;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.5s ease;
+}
+
+#world.night .street-lamp {
+  opacity: 1;
+}
+
+.lamp-post {
+  width: 4px;
+  height: 18px;
+  background: #666;
+  margin: 0 auto;
+}
+
+.lamp-light {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffd54f;
+  box-shadow: 0 0 25px 12px rgba(255,213,79,0.4), 0 0 50px 25px rgba(255,213,79,0.12);
+  margin: 0 auto;
+}
+
+/* ============================================
+   ZONE 1: HOSPITAL — top-left
+   ============================================ */
+#hospital {
+  position: absolute;
+  left: 5%;
+  top: 5%;
+  width: 24vw;
+  height: 30vh;
+  min-width: 170px;
+  min-height: 150px;
+  z-index: 5;
+  cursor: pointer;
+}
+
+.hospital-building {
+  width: 100%;
+  height: 100%;
+  background: #d32f2f;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.25);
+  transition: background 1.5s ease, box-shadow 0.3s ease;
+}
+
+#world.night .hospital-building {
+  background: #7b1a1a;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+
+.hospital-cross {
+  width: 35%;
+  height: 55%;
+  position: relative;
+  animation: crossPulse 3s ease-in-out infinite;
+}
+
+.hospital-cross .cross-v {
+  position: absolute;
+  left: 50%; top: 0;
+  transform: translateX(-50%);
+  width: 30%;
+  height: 100%;
+  background: #fff;
+  border-radius: 4px;
+}
+
+.hospital-cross .cross-h {
+  position: absolute;
+  top: 50%; left: 0;
+  transform: translateY(-50%);
+  width: 100%;
+  height: 30%;
+  background: #fff;
+  border-radius: 4px;
+}
+
+@keyframes crossPulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+.hospital-building.flash {
+  box-shadow: 0 0 40px 15px rgba(255,0,0,0.6), 0 0 80px 30px rgba(255,0,0,0.3) !important;
+}
+
+/* Hospital windows */
+.hospital-window {
+  position: absolute;
+  width: 12%;
+  height: 10%;
+  background: rgba(255,255,200,0);
+  border: 2px solid rgba(255,255,255,0.2);
+  border-radius: 2px;
+  transition: background 1.5s ease, box-shadow 1.5s ease, border-color 1.5s ease;
+}
+
+#world.night .hospital-window {
+  background: rgba(255,255,150,0.85);
+  box-shadow: 0 0 10px rgba(255,255,150,0.5);
+  border-color: rgba(255,255,150,0.3);
+}
+
+.hospital-window.w1 { top: 12%; left: 8%; }
+.hospital-window.w2 { top: 12%; right: 8%; }
+.hospital-window.w3 { bottom: 12%; left: 8%; }
+.hospital-window.w4 { bottom: 12%; right: 8%; }
+
+/* Hospital barrier — at bottom center, connecting to road */
+#hospital-barrier {
+  position: absolute;
+  bottom: -6vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70px;
+  height: 6vh;
+  min-height: 35px;
+  z-index: 6;
+  cursor: pointer;
+}
+
+.barrier-base {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 14px;
+  height: 100%;
+  background: linear-gradient(to top, #e0e0e0, #bdbdbd);
+  border-radius: 3px;
+  border: 1px solid #999;
+}
+
+.barrier-arm {
+  position: absolute;
+  bottom: calc(100% - 8px);
+  left: calc(50% - 2px);
+  width: 55px;
+  height: 10px;
+  background: repeating-linear-gradient(90deg, #ff1744 0px, #ff1744 9px, #fff 9px, #fff 18px);
+  border-radius: 3px;
+  transform-origin: left center;
+  transition: transform 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.barrier-arm.open {
+  transform: rotate(-88deg);
+}
+
+/* ============================================
+   ZONE 2: HELIPAD — top-right area
+   ============================================ */
+#helipad {
+  position: absolute;
+  right: 6%;
+  top: 4%;
+  width: min(22vw, 220px);
+  height: min(22vw, 220px);
+  min-width: 155px;
+  min-height: 155px;
+  z-index: 5;
+  cursor: pointer;
+}
+
+.helipad-circle {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: #757575;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  transition: background 1.5s ease;
+  border: 4px solid #616161;
+}
+
+#world.night .helipad-circle {
+  background: #4a4a4a;
+  border-color: #3a3a3a;
+}
+
+.helipad-h {
+  font-size: min(9vw, 75px);
+  font-weight: 900;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #fff;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* Inner circle marking */
+.helipad-circle::before {
+  content: '';
+  position: absolute;
+  width: 75%;
+  height: 75%;
+  border-radius: 50%;
+  border: 3px solid rgba(255,255,255,0.3);
+}
+
+.helipad-light {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #4caf50;
+  box-shadow: 0 0 6px rgba(76,175,80,0.5);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.helipad-light.standby {
+  animation: heliStandby 2s ease-in-out infinite;
+}
+
+.helipad-light.active {
+  background: #00e676;
+  box-shadow: 0 0 18px rgba(0,230,118,0.9);
+}
+
+#world.night .helipad-light {
+  box-shadow: 0 0 12px rgba(76,175,80,0.7);
+}
+
+#world.night .helipad-light.active {
+  box-shadow: 0 0 30px rgba(0,230,118,1);
+}
+
+@keyframes heliStandby {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+/* ============================================
+   ZONE 3: PARKING LOT — bottom
+   ============================================ */
+#parking {
+  position: absolute;
+  left: 8%;
+  bottom: 4%;
+  width: min(45vw, 420px);
+  min-width: 280px;
+  height: min(20vh, 160px);
+  min-height: 120px;
+  z-index: 5;
+}
+
+.parking-surface {
+  width: 100%;
+  height: 100%;
+  background: #616161;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-evenly;
+  padding: 12px 18px;
+  position: relative;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  transition: background 1.5s ease;
+}
+
+#world.night .parking-surface {
+  background: #3a3a3a;
+}
+
+.parking-bay {
+  width: 21%;
+  height: 80%;
+  border: 3px solid rgba(255,255,255,0.6);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.parking-bay:active {
+  background: rgba(255,255,255,0.1);
+}
+
+/* Parking bay number dots */
+.parking-bay::after {
+  content: '';
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.25);
+}
+
+.park-beep-indicator {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: transparent;
+  transition: background 0.08s;
+}
+
+.park-beep-indicator.beeping {
+  background: #ff5252;
+  box-shadow: 0 0 10px rgba(255,82,82,0.7);
+}
+
+/* Parking barrier */
+#parking-barrier {
+  position: absolute;
+  top: -6vh;
+  left: 20%;
+  width: 70px;
+  height: 6vh;
+  min-height: 35px;
+  z-index: 6;
+  cursor: pointer;
+}
+
+/* ============================================
+   TRAFFIC LIGHT — at left intersection
+   ============================================ */
+#traffic-light {
+  position: absolute;
+  left: calc(25% - 45px);
+  top: calc(45% - 90px);
+  width: 38px;
+  z-index: 20;
+  cursor: pointer;
+}
+
+.tl-housing {
+  width: 38px;
+  background: #212121;
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.4);
+}
+
+.tl-post {
+  width: 8px;
+  height: 22px;
+  background: #424242;
+  margin: 0 auto;
+  border-radius: 0 0 2px 2px;
+}
+
+.tl-light {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  margin: 0 auto;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+.tl-red    { background: #4a1a1a; }
+.tl-yellow { background: #4a4a1a; }
+.tl-green  { background: #1a4a1a; }
+
+.tl-red.on {
+  background: #ff1744;
+  box-shadow: 0 0 18px rgba(255,23,68,0.7);
+}
+.tl-yellow.on {
+  background: #ffd600;
+  box-shadow: 0 0 18px rgba(255,214,0,0.7);
+}
+.tl-green.on {
+  background: #00e676;
+  box-shadow: 0 0 18px rgba(0,230,118,0.7);
+}
+
+/* ============================================
+   DAY/NIGHT TOGGLE — bottom-right corner
+   ============================================ */
+#daynight-btn {
+  position: absolute;
+  bottom: 15px;
+  right: 15px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: 3px solid rgba(255,255,255,0.5);
+  background: #ffd54f;
+  z-index: 100;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  transition: background 0.6s, border-color 0.6s, box-shadow 0.6s;
+}
+
+#daynight-btn.night {
+  background: #1a237e;
+  border-color: rgba(200,200,255,0.4);
+  box-shadow: 0 0 15px rgba(100,100,200,0.3);
+}
+
+.sun-icon, .moon-icon {
+  position: absolute;
+  transition: opacity 0.5s, transform 0.5s;
+}
+
+.sun-icon {
+  width: 24px;
+  height: 24px;
+  background: #ff8f00;
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(255,143,0,0.6);
+}
+
+.moon-icon {
+  width: 20px;
+  height: 20px;
+  background: #e8eaf6;
+  border-radius: 50%;
+  box-shadow: inset -5px -2px 0 0 #1a237e;
+  opacity: 0;
+  transform: rotate(-40deg) scale(0.7);
+}
+
+#daynight-btn.night .sun-icon {
+  opacity: 0;
+  transform: rotate(90deg) scale(0.5);
+}
+
+#daynight-btn.night .moon-icon {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
+}
+
+/* ============================================
+   CLOUDS — shadow drifting over the grass
+   ============================================ */
+.cloud {
+  position: absolute;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.12;
+  transition: opacity 1.5s ease;
+}
+
+#world.night .cloud {
+  opacity: 0.04;
+}
+
+.cloud-blob {
+  background: rgba(0,0,0,0.35);
+  border-radius: 50%;
+  position: absolute;
+}
+</style>
+</head>
+<body>
+<div id="world">
+  <div class="grass"></div>
+
+  <!-- === ROADS === -->
+  <!-- Main horizontal road across the middle -->
+  <div id="road-main" class="road road-h"></div>
+  <!-- Vertical road up-right to helipad -->
+  <div id="road-up" class="road road-v"></div>
+  <!-- Vertical road down-left to parking -->
+  <div id="road-down" class="road road-v"></div>
+  <!-- Intersection patches -->
+  <div id="patch-right" class="road-patch"></div>
+  <div id="patch-left" class="road-patch"></div>
+
+  <!-- === STREET LAMPS (visible at night) === -->
+  <div class="street-lamp" style="left: 15%; top: calc(45% - 38px);">
+    <div class="lamp-light"></div><div class="lamp-post"></div>
+  </div>
+  <div class="street-lamp" style="left: 48%; top: calc(57% + 8px);">
+    <div class="lamp-light"></div><div class="lamp-post"></div>
+  </div>
+  <div class="street-lamp" style="left: calc(62% - 22px); top: 20%;">
+    <div class="lamp-light"></div><div class="lamp-post"></div>
+  </div>
+  <div class="street-lamp" style="left: calc(25% + 14%); top: 75%;">
+    <div class="lamp-light"></div><div class="lamp-post"></div>
+  </div>
+  <div class="street-lamp" style="left: 82%; top: calc(45% - 38px);">
+    <div class="lamp-light"></div><div class="lamp-post"></div>
+  </div>
+
+  <!-- === CLOUDS === -->
+  <div class="cloud" id="cloud1" style="top: 20%; left: -20%;">
+    <div class="cloud-blob" style="width:130px;height:50px;top:12px;left:0;"></div>
+    <div class="cloud-blob" style="width:90px;height:65px;top:0;left:35px;"></div>
+    <div class="cloud-blob" style="width:100px;height:45px;top:18px;left:70px;"></div>
+  </div>
+  <div class="cloud" id="cloud2" style="top: 65%; left: -35%;">
+    <div class="cloud-blob" style="width:110px;height:40px;top:8px;left:0;"></div>
+    <div class="cloud-blob" style="width:75px;height:55px;top:0;left:25px;"></div>
+    <div class="cloud-blob" style="width:85px;height:38px;top:14px;left:55px;"></div>
+  </div>
+
+  <!-- === ZONE 1: HOSPITAL === -->
+  <div id="hospital">
+    <div class="hospital-building" id="hospital-building">
+      <div class="hospital-cross">
+        <div class="cross-v"></div>
+        <div class="cross-h"></div>
+      </div>
+      <div class="hospital-window w1"></div>
+      <div class="hospital-window w2"></div>
+      <div class="hospital-window w3"></div>
+      <div class="hospital-window w4"></div>
+    </div>
+    <div id="hospital-barrier">
+      <div class="barrier-base"></div>
+      <div class="barrier-arm" id="hospital-barrier-arm"></div>
+    </div>
+  </div>
+
+  <!-- === ZONE 2: HELIPAD === -->
+  <div id="helipad">
+    <div class="helipad-circle" id="helipad-circle">
+      <span class="helipad-h">H</span>
+    </div>
+  </div>
+
+  <!-- === ZONE 3: PARKING === -->
+  <div id="parking">
+    <div id="parking-barrier">
+      <div class="barrier-base"></div>
+      <div class="barrier-arm" id="parking-barrier-arm"></div>
+    </div>
+    <div class="parking-surface">
+      <div class="parking-bay" data-bay="0"><div class="park-beep-indicator"></div></div>
+      <div class="parking-bay" data-bay="1"><div class="park-beep-indicator"></div></div>
+      <div class="parking-bay" data-bay="2"><div class="park-beep-indicator"></div></div>
+      <div class="parking-bay" data-bay="3"><div class="park-beep-indicator"></div></div>
+    </div>
+  </div>
+
+  <!-- === TRAFFIC LIGHT === -->
+  <div id="traffic-light">
+    <div class="tl-housing">
+      <div class="tl-light tl-red on" id="tl-red"></div>
+      <div class="tl-light tl-yellow" id="tl-yellow"></div>
+      <div class="tl-light tl-green" id="tl-green"></div>
+    </div>
+    <div class="tl-post"></div>
+  </div>
+
+  <!-- === DAY/NIGHT TOGGLE === -->
+  <div id="daynight-btn">
+    <div class="sun-icon"></div>
+    <div class="moon-icon"></div>
+  </div>
+</div>
+
+<script>
+// =============================================
+// WEB AUDIO API — All sounds synthesized
+// =============================================
+let audioCtx = null;
+
+function ensureAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playSiren(duration) {
+  duration = duration || 2.5;
+  const ctx = ensureAudio();
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(400, t);
+  // Sweep up/down 3 times
+  for (let i = 0; i < 6; i++) {
+    const segStart = t + i * (duration / 6);
+    const segEnd = segStart + duration / 6;
+    osc.frequency.linearRampToValueAtTime(i % 2 === 0 ? 800 : 400, segEnd);
+  }
+  gain.gain.setValueAtTime(0.18, t);
+  gain.gain.linearRampToValueAtTime(0, t + duration);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + duration);
+}
+
+function playRotor(duration) {
+  duration = duration || 3;
+  const ctx = ensureAudio();
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const lfo = ctx.createOscillator();
+  const lfoGain = ctx.createGain();
+  const master = ctx.createGain();
+
+  osc.type = 'sawtooth';
+  osc.frequency.value = 55;
+  lfo.type = 'square';
+  lfo.frequency.setValueAtTime(18, t);
+  lfo.frequency.linearRampToValueAtTime(26, t + duration * 0.4);
+  lfo.frequency.linearRampToValueAtTime(20, t + duration);
+  lfoGain.gain.value = 0.15;
+  master.gain.setValueAtTime(0.15, t);
+  master.gain.linearRampToValueAtTime(0, t + duration);
+
+  lfo.connect(lfoGain);
+  lfoGain.connect(master.gain);
+  osc.connect(master).connect(ctx.destination);
+  osc.start(t); lfo.start(t);
+  osc.stop(t + duration); lfo.stop(t + duration);
+}
+
+function playBarrier() {
+  const ctx = ensureAudio();
+  const t = ctx.currentTime;
+  // Servo whirr (filtered noise)
+  const buf = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
+  const ch = buf.getChannelData(0);
+  for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * 0.3;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = 1200; bp.Q.value = 5;
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.1, t);
+  ng.gain.linearRampToValueAtTime(0, t + 0.5);
+  src.connect(bp).connect(ng).connect(ctx.destination);
+  src.start(t); src.stop(t + 0.5);
+
+  // Confirmation beep
+  const beep = ctx.createOscillator();
+  const bg = ctx.createGain();
+  beep.type = 'sine'; beep.frequency.value = 880;
+  bg.gain.setValueAtTime(0, t);
+  bg.gain.setValueAtTime(0.12, t + 0.35);
+  bg.gain.linearRampToValueAtTime(0, t + 0.5);
+  beep.connect(bg).connect(ctx.destination);
+  beep.start(t + 0.35); beep.stop(t + 0.5);
+}
+
+function playClick() {
+  const ctx = ensureAudio();
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(1500, t);
+  osc.frequency.exponentialRampToValueAtTime(200, t + 0.03);
+  gain.gain.setValueAtTime(0.15, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.06);
+}
+
+function playParkingBeep() {
+  const ctx = ensureAudio();
+  const t = ctx.currentTime;
+  var total = 1.8;
+  var count = 10;
+  for (var i = 0; i < count; i++) {
+    var p = i / count;
+    var when = t + p * p * total; // accelerating
+    var osc = ctx.createOscillator();
+    var g = ctx.createGain();
+    osc.type = 'sine'; osc.frequency.value = 1000;
+    g.gain.setValueAtTime(0.12, when);
+    g.gain.linearRampToValueAtTime(0, when + 0.05);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(when); osc.stop(when + 0.05);
+  }
+  return total;
+}
+
+function playTicket() {
+  const ctx = ensureAudio();
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const lfo = ctx.createOscillator();
+  const lg = ctx.createGain();
+  const mg = ctx.createGain();
+  osc.type = 'square'; osc.frequency.value = 300;
+  lfo.type = 'square'; lfo.frequency.value = 40;
+  lg.gain.value = 200;
+  mg.gain.setValueAtTime(0.08, t);
+  mg.gain.linearRampToValueAtTime(0, t + 0.35);
+  lfo.connect(lg); lg.connect(osc.frequency);
+  osc.connect(mg).connect(ctx.destination);
+  osc.start(t); lfo.start(t);
+  osc.stop(t + 0.35); lfo.stop(t + 0.35);
+}
+
+// =============================================
+// TOUCH / INTERACTION
+// =============================================
+
+// Block all default touch behavior (scroll, zoom, callout)
+document.addEventListener('touchstart', function(e) { e.preventDefault(); }, { passive: false });
+document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
+document.addEventListener('touchend', function(e) { e.preventDefault(); }, { passive: false });
+document.addEventListener('gesturestart', function(e) { e.preventDefault(); }, { passive: false });
+document.addEventListener('gesturechange', function(e) { e.preventDefault(); }, { passive: false });
+
+// Unified tap handler supporting multitouch
+function onTap(el, fn) {
+  el.addEventListener('touchstart', function(e) {
+    e.stopPropagation();
+    fn(e);
+  }, { passive: false });
+  el.addEventListener('click', function(e) {
+    e.stopPropagation();
+    fn(e);
+  });
+}
+
+// --- HOSPITAL ---
+var sirenActive = false;
+onTap(document.getElementById('hospital-building'), function() {
+  if (sirenActive) return;
+  sirenActive = true;
+  playSiren(2.5);
+  var bld = document.getElementById('hospital-building');
+  var n = 0;
+  var iv = setInterval(function() {
+    bld.classList.toggle('flash');
+    n++;
+    if (n >= 10) {
+      clearInterval(iv);
+      bld.classList.remove('flash');
+      sirenActive = false;
+    }
+  }, 250);
+});
+
+// Hospital barrier
+var hBarrierArm = document.getElementById('hospital-barrier-arm');
+var hBarrierOpen = false;
+onTap(document.getElementById('hospital-barrier'), function() {
+  playBarrier();
+  hBarrierOpen = !hBarrierOpen;
+  hBarrierArm.classList.toggle('open', hBarrierOpen);
+});
+
+// --- HELIPAD ---
+var heliActive = false;
+var heliLights = [];
+var heliCircle = document.getElementById('helipad-circle');
+
+// Create 8 landing lights around the circle edge
+(function() {
+  for (var i = 0; i < 8; i++) {
+    var light = document.createElement('div');
+    light.className = 'helipad-light standby';
+    var angle = (i / 8) * Math.PI * 2 - Math.PI / 2;
+    var r = 46;
+    light.style.left = 'calc(50% + ' + (Math.cos(angle) * r) + '% - 6px)';
+    light.style.top = 'calc(50% + ' + (Math.sin(angle) * r) + '% - 6px)';
+    // Stagger standby animation
+    light.style.animationDelay = (i * 0.25) + 's';
+    heliCircle.appendChild(light);
+    heliLights.push(light);
+  }
+})();
+
+onTap(document.getElementById('helipad'), function() {
+  if (heliActive) return;
+  heliActive = true;
+  playRotor(3);
+  var idx = 0;
+  var iv = setInterval(function() {
+    heliLights.forEach(function(l) { l.classList.remove('active'); });
+    heliLights[idx % heliLights.length].classList.add('active');
+    idx++;
+    if (idx >= heliLights.length * 3) {
+      clearInterval(iv);
+      heliLights.forEach(function(l) { l.classList.remove('active'); });
+      heliActive = false;
+    }
+  }, 110);
+});
+
+// --- PARKING BARRIER ---
+var pBarrierArm = document.getElementById('parking-barrier-arm');
+var pBarrierOpen = false;
+onTap(document.getElementById('parking-barrier'), function() {
+  playBarrier();
+  playTicket();
+  pBarrierOpen = !pBarrierOpen;
+  pBarrierArm.classList.toggle('open', pBarrierOpen);
+});
+
+// --- PARKING BAYS ---
+var bays = document.querySelectorAll('.parking-bay');
+var bayBusy = {};
+
+bays.forEach(function(bay) {
+  onTap(bay, function() {
+    var idx = bay.dataset.bay;
+    if (bayBusy[idx]) return;
+    bayBusy[idx] = true;
+
+    var dur = playParkingBeep();
+    var dot = bay.querySelector('.park-beep-indicator');
+    var n = 0;
+    var iv = setInterval(function() {
+      dot.classList.toggle('beeping');
+      n++;
+      if (n >= 20) {
+        clearInterval(iv);
+        dot.classList.remove('beeping');
+        delete bayBusy[idx];
+      }
+    }, dur * 1000 / 20);
+  });
+});
+
+// --- TRAFFIC LIGHT ---
+var tlState = 0;
+var tlEls = [
+  document.getElementById('tl-red'),
+  document.getElementById('tl-yellow'),
+  document.getElementById('tl-green')
+];
+
+function setTL() {
+  tlEls.forEach(function(el, i) {
+    el.classList.toggle('on', i === tlState);
+  });
+}
+
+onTap(document.getElementById('traffic-light'), function() {
+  playClick();
+  tlState = (tlState + 1) % 3;
+  setTL();
+});
+
+// --- DAY/NIGHT ---
+var world = document.getElementById('world');
+var dnBtn = document.getElementById('daynight-btn');
+var isNight = false;
+
+onTap(dnBtn, function() {
+  playClick();
+  isNight = !isNight;
+  world.classList.toggle('night', isNight);
+  dnBtn.classList.toggle('night', isNight);
+});
+
+// =============================================
+// AMBIENT — cloud shadows drifting
+// =============================================
+var c1 = document.getElementById('cloud1');
+var c2 = document.getElementById('cloud2');
+var c1x = -20, c2x = -35;
+
+function animate() {
+  c1x += 0.018;
+  c2x += 0.012;
+  if (c1x > 110) c1x = -22;
+  if (c2x > 115) c2x = -35;
+  c1.style.left = c1x + '%';
+  c2.style.left = c2x + '%';
+  requestAnimationFrame(animate);
+}
+
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
